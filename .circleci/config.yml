@@ -2,57 +2,42 @@
 # Stacks detected: deps:node:frontend
 version: 2.1
 orbs:
-  node: circleci/node@5
+  sonarscanner: psl/sonarscanner@0.0.4
+
 jobs:
-  test-node:
-    # Install node dependencies and run tests
-    executor: node/default
-    working_directory: ~/project/frontend
-    steps:
-      - checkout:
-          path: ~/project
-      - node/install-packages:
-          pkg-manager: npm
-      - run:
-          name: Run tests
-          command: npm test --passWithNoTests
-  build-node:
-    # Build node project
-    executor: node/default
-    working_directory: ~/project/frontend
-    steps:
-      - checkout:
-          path: ~/project
-      - node/install-packages:
-          pkg-manager: npm
-      - run:
-          command: npm run build
-      - run:
-          name: Create the ~/artifacts directory if it doesn't exist
-          command: mkdir -p ~/artifacts
-      # Copy output to artifacts dir
-      - run:
-          name: Copy artifacts
-          command: cp -R build dist public .output .next .docusaurus ~/artifacts 2>/dev/null || true
-      - store_artifacts:
-          path: ~/artifacts
-          destination: node-build
-  deploy:
-    # This is an example deploy job, not actually used by the workflow
+  # Sonarqube scanner   
+  scan:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/base:2021.04
+    working_directory: /tmp/workspace
+    environment:
+      ENV_FILE: /tmp/workspace/.circleenv
+      DOCKER_BUILDKIT: "1"
+      BUILDKIT_PROGRESS: plain       
     steps:
-      # Replace this with steps to deploy to users
-      - run:
-          name: deploy
-          command: '#e.g. ./deploy.sh'
-workflows:
-  build-and-test:
+    - checkout  
+    - attach_workspace:
+          at: /tmp/workspace    
+    - run:
+        name: Install Sonarqube scanner 
+        command: |
+            sudo apt-get update
+            sudo apt-get install -y openjdk-11-jdk
+            wget -O sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.6.2.2472-linux.zip
+            unzip sonar-scanner.zip
+            rm sonar-scanner.zip
+    - run:
+        name: Run Sonarscanner
+        command: |
+            export PATH="$PATH:$PWD/sonar-scanner-4.6.2.2472-linux/bin"
+            sonar-scanner \
+            -Dsonar.projectKey=$CIRCLE_BRANCH:$CIRCLE_PROJECT_REPONAME \
+            -Dsonar.host.url=https://sonarqube.com/ \
+            -Dsonar.login=$SONAR_TOKEN  
+
+workflows: 
+ version: 2
+  main:
     jobs:
-      - test-node
-      - build-node:
-          requires:
-            - test-node
-    # - deploy:
-    #     requires:
-    #       - build-node
+       - scan:
+         context: sonarqube
