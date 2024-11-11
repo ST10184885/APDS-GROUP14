@@ -8,7 +8,7 @@ jobs:
   # Sonarqube scanner   
   scan:
     docker:
-      - image: cimg/base:2021.04
+      - image: 'cimg/base:2021.0'
     working_directory: /tmp/workspace
     environment:
       ENV_FILE: /tmp/workspace/.circleenv
